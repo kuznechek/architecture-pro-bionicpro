@@ -4,8 +4,9 @@
 
 As-is :
 
-!(as-is.png)[]
-(as-is.drawio)[]
+![as-is.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/as-is.png)
+
+[as-is.drawio](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/as-is.drawio)
 
 В текущую диаграмму необходимо добавить компоненты для управления доступом и отчетностью:
 
@@ -17,5 +18,6 @@ As-is :
 
 - ClickHouse (хранилище для отчетов и аналитики)
 
-!(to-be.png)[]
-(to-be.drawio)[]
+![to-be.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/to-be.png)
+
+[to-be.drawio](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/to-be.drawio)
