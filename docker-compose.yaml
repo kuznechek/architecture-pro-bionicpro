@@ -1,42 +1,71 @@
-version: '3.8'
-
 services:
   keycloak_db:
-    image: postgres:14
+    image: postgres:15
     environment:
-      POSTGRES_DB: keycloak_db
-      POSTGRES_USER: keycloak_user
-      POSTGRES_PASSWORD: keycloak_password
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
     volumes:
-      - ./postgres-keycloak-data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bionicnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   keycloak:
-    image: quay.io/keycloak/keycloak:21.1
+    image: quay.io/keycloak/keycloak:26.0
     environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak_db
-      KC_DB_USERNAME: keycloak_user
-      KC_DB_PASSWORD: keycloak_password
-    command: 
-      - start-dev
-      - --import-realm
-    volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+    command: start-dev
     ports:
       - "8080:8080"
     depends_on:
-      - keycloak_db
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+      keycloak_db:
+        condition: service_healthy
+    networks:
+      - bionicnet
+
+  bionicpro-auth:
+    build: ./bionicpro-auth
     environment:
-      REACT_APP_API_URL: http://localhost:8000
-      REACT_APP_KEYCLOAK_URL: http://localhost:8080
-      REACT_APP_KEYCLOAK_REALM: reports-realm
-      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80
+      Keycloak__Authority: http://keycloak:8080/realms/reports-realm
+      Keycloak__TokenUrl: http://keycloak:8080/realms/reports-realm/protocol/openid-connect/token
+      Keycloak__LogoutUrl: http://keycloak:8080/realms/reports-realm/protocol/openid-connect/logout
+      Keycloak__ClientId: reports-api
+      Keycloak__ClientSecret: oNwoLQdvJAvRcL89SydqCWCe5ry1jMgq
+      Session__TimeoutMinutes: 120
+    ports:
+      - "5001:80"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - bionicnet
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:80"
+    depends_on:
+      - bionicpro-auth
+    networks:
+      - bionicnet
+
+volumes:
+  postgres_data:
+
+networks:
+  bionicnet:
+    driver: bridge
