@@ -10,12 +10,20 @@ const ReportPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  useEffect(() => {
-    fetch(`${AUTH_API}/user`, { credentials: 'include' })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => setUser(data))
-      .catch(() => setUser(null));
-  }, []);
+useEffect(() => {
+  fetch('http://localhost:5001/api/auth/user', { credentials: 'include' })
+    .then(res => {
+      if (res.status === 401) {
+        setUser(null);
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (data) setUser(data);
+    })
+    .catch(() => setUser(null));
+}, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +94,11 @@ const ReportPage: React.FC = () => {
           />
           <button type="submit">Login</button>
         </form>
+        <div>
+          <button onClick={handleYandexLogin} className="...">
+            Войти через Яндекс
+          </button>
+        </div>
       </div>
     );
   }
@@ -100,6 +113,11 @@ const ReportPage: React.FC = () => {
       {error && <div style={{ color: 'red', marginTop: 10 }}>{error}</div>}
     </div>
   );
+};
+
+const handleYandexLogin = () => {
+  const keycloakAuthUrl = `http://localhost:8080/realms/reports-realm/protocol/openid-connect/auth?client_id=reports-frontend&response_type=code&redirect_uri=${window.location.origin}`;ttp://localhost:8080/realms/reports-realm/protocol/openid-connect/auth?client_id=reports-frontend&response_type=code&redirect_uri=http://localhost:3000
+  window.location.href = keycloakAuthUrl;
 };
 
 export default ReportPage;

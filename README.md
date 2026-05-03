@@ -1,12 +1,12 @@
 # Задание 1. Повышение безопасности системы
 
+## Задача 1. Предложите архитектурное решение и доработайте диаграмму C4 для управления учётными данными пользователя. 
+
 *As-is :*
 
 ![as-is.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/as-is.png)
 
 [as-is.drawio](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/as-is.drawio)
-
-## Задача 1. Предложите архитектурное решение и доработайте диаграмму C4 для управления учётными данными пользователя. 
 
 В текущую диаграмму необходимо добавить компоненты для управления доступом и отчетностью:
 
@@ -22,9 +22,9 @@
 
 [to-be.drawio](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/to-be.drawio)
 
-## Задача 2. Улучшите безопасность существующего приложения, заменив Code Grant на PKCE
+## Задача 2. Улучшите безопасность существующего приложения, заменив Code Grant на PKCE. 
 
-Новый [realm-export.json](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/keycloak/realm-export.json)
+Новый [realm-export.json](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/keycloak/realm-export.json.v1)
 
 Также нужно скорректировать код приложения [App.tsx](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/frontend/src/App.tsx):
 
@@ -37,16 +37,41 @@ const keycloakConfig: KeycloakConfig = {
 };
 ```
 
-## Задача 3. Обеспечьте безопасное получение и хранение access-и refresh-токенов
+## Задачи 3-5
 
-Бэкенд добавлен, его реализация на ПЯВУ C# расположен в директории `/bionicpro-auth`:
+Обновлённый файл [`realm-export.json`](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/keycloak/realm-export.json)
 
-```
-cd bionicpro-auth
-dotnet build
-dotnet run --urls "https://localhost:5001;http://localhost:5000"
-```
+Бэкенд добавлен, его реализация на ПЯВУ C# расположен в директории `/bionicpro-auth`
 
-```
-docker run -p 8080:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:26.0.0 start-dev
-```
+*KeycloakService*
+
+- Выполняет аутентификацию пользователя по паролю (grant_type=password).
+
+- Обновляет access_token с помощью refresh_token.
+
+- Запрашивает scope=openid для корректной работы userinfo endpoint.
+
+- Получает информацию о пользователе и реализует выход.
+
+*SessionMiddleware*
+
+- Проверяет наличие и валидность сессионной cookie (session_id).
+
+- Ротация сессии: при каждом успешном запросе генерируется новый sessionId, старый удаляется, cookie обновляется (предотвращение session fixation).
+
+- Устанавливает cookie с флагами HttpOnly и Secure.
+
+*AuthController*
+
+Эндпоинты /login, /logout, /refresh, /user.
+
+- При успешной аутентификации access_token и refresh_token шифруются с помощью TokenProtector и сохраняются в оперативной памяти (защищённое хранилище).
+
+- Клиенту возвращается только сессионная cookie (токены не передаются).
+
+- Автоматическое обновление истёкшего access_token через refresh_token без участия пользователя.
+
+*TokenProtector*
+
+- Использует Microsoft.AspNetCore.DataProtection для шифрования токенов перед сохранением в памяти сервера..
+

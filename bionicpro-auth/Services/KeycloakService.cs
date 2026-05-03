@@ -30,7 +30,8 @@ public class KeycloakService
             new KeyValuePair<string, string>("client_secret", _configuration["Keycloak:ClientSecret"]),
             new KeyValuePair<string, string>("grant_type", "password"),
             new KeyValuePair<string, string>("username", username),
-            new KeyValuePair<string, string>("password", password)
+            new KeyValuePair<string, string>("password", password),
+            new KeyValuePair<string, string>("scope", "openid")
         });
 
         var response = await _httpClient.PostAsync(tokenUrl, content);
@@ -78,18 +79,17 @@ public class KeycloakService
     public async Task<UserInfo> GetUserInfoAsync(string accessToken)
     {
         var userInfoUrl = _configuration["Keycloak:Authority"] + "/protocol/openid-connect/userinfo";
-        
-        _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {accessToken}");
-        
-        var response = await _httpClient.GetAsync(userInfoUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Get, userInfoUrl);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        var response = await _httpClient.SendAsync(request);
         
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogWarning("Failed to get user info");
-            throw new UnauthorizedAccessException("Invalid access token");
+            var error = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("GetUserInfo failed: {Error}", error);
+            throw new UnauthorizedAccessException("Failed to get user info");
         }
-
+        
         var json = await response.Content.ReadAsStringAsync();
         var userInfoRaw = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
         

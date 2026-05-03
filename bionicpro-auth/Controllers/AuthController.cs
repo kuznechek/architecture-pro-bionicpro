@@ -191,7 +191,6 @@ public class AuthController : ControllerBase
             var raw = JsonSerializer.Deserialize<Dictionary<string, object>>(encryptedJson);
             if (raw == null) return null;
             
-            // Дешифруем токены
             if (raw.TryGetValue("AccessTokenEncrypted", out var atEnc) && atEnc is string atEncStr)
                 raw["AccessToken"] = _tokenProtector.Unprotect(atEncStr);
             if (raw.TryGetValue("RefreshTokenEncrypted", out var rtEnc) && rtEnc is string rtEncStr)

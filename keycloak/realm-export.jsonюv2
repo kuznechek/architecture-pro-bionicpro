@@ -1,0 +1,188 @@
+{
+  "realm": "reports-realm",
+  "enabled": true,
+  "displayName": "BionicPRO Reports Realm",
+  "users": [
+    {
+      "username": "prothetic1",
+      "enabled": true,
+      "email": "prothetic1@example.com",
+      "firstName": "Prothetic",
+      "lastName": "One",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "prothetic123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["prothetic_user", "user"],
+      "requiredActions": ["CONFIGURE_TOTP"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Regular user" },
+      { "name": "administrator", "description": "Administrator" },
+      { "name": "prothetic_user", "description": "Prothetic user with report access" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "reports-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "reports-api",
+      "enabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": false,
+      "bearerOnly": true,
+      "secret": "oNwoLQdvJAvRcL89SydqCWCe5ry1jMgq"
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "yandex",
+      "displayName": "Yandex",
+      "providerId": "oidc",
+      "enabled": true,
+      "config": {
+        "clientId": "6de04cea94fe4909b6d042739b22c193",
+        "clientSecret": "f58db3773d144f1389f689c6c4da1d6a",
+        "authorizationUrl": "https://oauth.yandex.ru/authorize",
+        "tokenUrl": "https://oauth.yandex.ru/token",
+        "userInfoUrl": "https://login.yandex.ru/info",
+        "defaultScope": "openid email profile",
+        "syncMode": "FORCE"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "identityProviderAlias": "yandex",
+      "name": "Email importer",
+      "identityProviderMapper": "oidc-attribute-importer",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "email",
+        "user.attribute": "email"
+      }
+    },
+    {
+      "identityProviderAlias": "yandex",
+      "name": "Full name importer",
+      "identityProviderMapper": "oidc-attribute-importer",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "name",
+        "user.attribute": "firstName"
+      }
+    },
+    {
+      "identityProviderAlias": "yandex",
+      "name": "Login importer",
+      "identityProviderMapper": "oidc-attribute-importer",
+      "config": {
+        "syncMode": "FORCE",
+        "claim": "login",
+        "user.attribute": "username"
+      }
+    }
+  ],
+  "userFederationProviders": [
+    {
+      "id": "openldap",
+      "providerName": "ldap",
+      "config": {
+        "priority": "0",
+        "importEnabled": "false",
+        "editMode": "READ_ONLY",
+        "syncRegistrations": "false",
+        "vendor": "other",
+        "usernameLDAPAttribute": "uid",
+        "rdnLDAPAttribute": "uid",
+        "uuidLDAPAttribute": "uid",
+        "userObjectClasses": "inetOrgPerson, organizationalPerson",
+        "connectionUrl": "ldap://openldap:389",
+        "usersDn": "ou=people,dc=bionicpro,dc=com",
+        "authType": "simple",
+        "bindDn": "cn=admin,dc=bionicpro,dc=com",
+        "bindCredential": "admin",
+        "searchScope": "1",
+        "useTruststoreSpi": "always",
+        "connectionPooling": "true"
+      }
+    }
+  ],
+  "userFederationMappers": [
+    {
+      "name": "memberOf to roles",
+      "federationMapperType": "user-attribute-ldap-mapper",
+      "config": {
+        "ldap.attribute": "memberOf",
+        "user.attribute": "roles",
+        "read.only": "true"
+      }
+    }
+  ],
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "defaultAction": true,
+      "enabled": true,
+      "name": "Configure OTP"
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "browser with OTP",
+      "description": "Browser based authentication with OTP",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticatorFlow": true, "requirement": "ALTERNATIVE", "priority": 10, "flowAlias": "forms" },
+        { "authenticator": "auth-cookie", "requirement": "ALTERNATIVE", "priority": 20 },
+        { "authenticator": "identity-provider-redirector", "requirement": "ALTERNATIVE", "priority": 25 },
+        { "authenticator": "idp-review-profile", "requirement": "ALTERNATIVE", "priority": 30 }
+      ]
+    },
+    {
+      "alias": "forms",
+      "description": "Username, password, otp",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 10 },
+        { "authenticator": "auth-otp-form", "requirement": "REQUIRED", "priority": 20 }
+      ]
+    }
+  ],
+  "attributes": {
+    "actionTokenGeneratedByUserLifespan": "300",
+    "clientOfflineSessionIdleTimeout": "0",
+    "clientOfflineSessionMaxLifespan": "0",
+    "clientSessionIdleTimeout": "0",
+    "clientSessionMaxLifespan": "0",
+    "offlineSessionMaxLifespan": "5184000",
+    "offlineSessionMaxLifespanEnabled": "false"
+  }
+}

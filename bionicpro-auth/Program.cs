@@ -1,8 +1,10 @@
 using BionicProAuth.Middleware;
 using BionicProAuth.Services;
-using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<TokenProtector, TokenProtector>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -17,15 +19,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:3001")
+        policy.WithOrigins("http://localhost:3000")
               .AllowCredentials()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
-
-builder.Services.AddDataProtection();
-builder.Services.AddSingleton<TokenProtector, TokenProtector>();
 
 var app = builder.Build();
 
