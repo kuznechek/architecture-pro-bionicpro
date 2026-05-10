@@ -45,8 +45,8 @@ public class AuthController : ControllerBase
                 Username = userInfo.Username,
                 Email = userInfo.Email,
                 Roles = userInfo.Roles,
-                AccessTokenEncrypted = _tokenProtector.Protect(tokens.AccessToken),
-                RefreshTokenEncrypted = _tokenProtector.Protect(tokens.RefreshToken),
+                AccessToken = _tokenProtector.Protect(tokens.AccessToken),
+                RefreshToken = _tokenProtector.Protect(tokens.RefreshToken),
                 ExpiresAt = DateTime.UtcNow.AddMinutes(_configuration.GetValue<int>("Session:TimeoutMinutes", 60))
             };
             
@@ -57,7 +57,7 @@ public class AuthController : ControllerBase
             Response.Cookies.Append("session_id", sessionId, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = true,
+                Secure = false,
                 SameSite = SameSiteMode.Strict,
                 MaxAge = TimeSpan.FromMinutes(_configuration.GetValue<int>("Session:TimeoutMinutes", 60))
             });
