@@ -58,7 +58,7 @@ public class AuthController : ControllerBase
             {
                 HttpOnly = true,
                 Secure = false,
-                SameSite = SameSiteMode.Strict,
+                SameSite = SameSiteMode.Lax,
                 MaxAge = TimeSpan.FromMinutes(_configuration.GetValue<int>("Session:TimeoutMinutes", 60))
             });
             

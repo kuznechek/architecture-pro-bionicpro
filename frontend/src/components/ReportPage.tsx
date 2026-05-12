@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-const AUTH_API = process.env.REACT_APP_AUTH_API_URL || 'http://localhost:5001/api/auth';
-const BUSINESS_API = process.env.REACT_APP_BUSINESS_API_URL || 'http://localhost:5001/api';
+const AUTH_API = '/api/auth';
+const BUSINESS_API = '/api';
 
 const ReportPage: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -40,7 +40,7 @@ const ReportPage: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ Username: username, Password: password })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');

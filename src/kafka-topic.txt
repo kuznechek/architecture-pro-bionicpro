@@ -1,0 +1,54 @@
+{
+  "before": null,
+  "after": {
+    "id": 1,
+    "name": "Test Client",
+    "email": "test@example.com",
+    "created_at": "2026-05-13T10:00:00Z"
+  },
+  "source": {
+    "version": "2.5.1.Final",
+    "connector": "postgresql",
+    "name": "crm",
+    "ts_ms": 1744567890123,
+    "snapshot": "true",
+    "db": "crm_db",
+    "schema": "public",
+    "table": "clients",
+    "txId": 12345,
+    "lsn": 12345678,
+    "xmin": null
+  },
+  "op": "r",
+  "ts_ms": 1744567890123
+}
+
+{
+  "before": {
+    "id": 1,
+    "name": "Test Client",
+    "email": "test@example.com",
+    "created_at": "2026-05-13T10:00:00Z"
+  },
+  "after": {
+    "id": 1,
+    "name": "Updated Client",
+    "email": "updated@example.com",
+    "created_at": "2026-05-13T10:00:00Z"
+  },
+  "source": {
+    "version": "2.5.1.Final",
+    "connector": "postgresql",
+    "name": "crm",
+    "ts_ms": 1744567895123,
+    "snapshot": "false",
+    "db": "crm_db",
+    "schema": "public",
+    "table": "clients",
+    "txId": 12346,
+    "lsn": 12345679,
+    "xmin": null
+  },
+  "op": "u",
+  "ts_ms": 1744567895123
+}

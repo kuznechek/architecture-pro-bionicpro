@@ -37,7 +37,7 @@ const keycloakConfig: KeycloakConfig = {
 };
 ```
 
-## Задачи 3-5
+## Задача 3 Безопасное получение и хранение токенов, сервис bionicpro-auth
 
 Обновлённый файл [`realm-export.json`](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/keycloak/realm-export.json)
 
@@ -53,7 +53,7 @@ const keycloakConfig: KeycloakConfig = {
 
 - Получает информацию о пользователе и реализует выход.
 
-*SessionMiddleware*
+**SessionMiddleware**
 
 - Проверяет наличие и валидность сессионной cookie (session_id).
 
@@ -61,7 +61,7 @@ const keycloakConfig: KeycloakConfig = {
 
 - Устанавливает cookie с флагами HttpOnly и Secure.
 
-*AuthController*
+**AuthController**
 
 Эндпоинты /login, /logout, /refresh, /user.
 
@@ -71,18 +71,118 @@ const keycloakConfig: KeycloakConfig = {
 
 - Автоматическое обновление истёкшего access_token через refresh_token без участия пользователя.
 
-*TokenProtector*
+**TokenProtector**
 
-- Использует Microsoft.AspNetCore.DataProtection для шифрования токенов перед сохранением в памяти сервера..
+- Использует Microsoft.AspNetCore.DataProtection для шифрования токенов перед сохранением в памяти сервера
+
+**Фронтенд (React) – обновлён**
+
+- Удалены все вызовы keycloak.login(), keycloak.token.
+
+- Добавлена форма логина (username/password), отправляющая запрос на /api/auth/login с credentials: 'include'.
+
+- Все защищённые запросы (например, к /api/reports) также используют credentials: 'include'
+
+![bionic_pro_client_1.3.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/bionic_pro_client_1.3.png)
+
+## Задача 4. LDAP
+
+Развёрнут OpenLDAP в Docker:
+
+```
+openldap:
+  image: osixia/openldap:1.5.0
+  environment:
+    LDAP_ORGANISATION: "BionicPRO"
+    LDAP_DOMAIN: "bionicpro.com"
+    LDAP_ADMIN_PASSWORD: "admin"
+  volumes:
+    - ./ldif/data:/var/lib/ldap
+    - ./ldif/config:/etc/ldap/slapd.d
+  ports:
+    - "389:389"
+
+```
+
+Keycloak настройка федерации:
+
+Добавлен провайдер ldap в User Federation:
+
+Connection URL: ldap://openldap:389
+
+Users DN: ou=people,dc=bionicpro,dc=com
+
+Bind DN: cn=admin,dc=bionicpro,dc=com
+
+Edit Mode: READ_ONLY
+
+Создан маппер group-ldap-mapper для синхронизации групп → ролей Keycloak.
+
+Пользователи из LDAP могут входить (пароли из LDAP), автоматически получают роли.
+
+![ldap_1.4.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/ldap_1.4.png)
+
+## Задача 5. Настройте MFA
+
+- В requiredActions добавлен CONFIGURE_TOTP как defaultAction: true.
+
+- Создан новый поток аутентификации browser with OTP, в котором auth-otp-form обязателен (REQUIRED).
+
+- Установлены параметры OTP: otpPolicyType: totp, otpPolicyDigits: 6, otpPolicyPeriod: 30
+
+При первом входе пользователь должен настроить Google Authenticator (отсканировать QR‑код). После этого при каждой попытке входа требуетcя ввести одноразовый пароль.
+
+![mfa_1.5.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/mfa_1.5.png)
+
+## Задача 6. Добавьте OAuth 2.0 от Яндекс ID
+
+```
+"identityProviders": [
+  {
+    "alias": "yandex",
+    "providerId": "oidc",
+    "enabled": true,
+    "config": {
+      "clientId": "6de04cea94fe4909b6d042739b22c193",
+      "clientSecret": "f58db3773d144f1389f689c6c4da1d6a",
+      "authorizationUrl": "https://oauth.yandex.ru/authorize",
+      "tokenUrl": "https://oauth.yandex.ru/token",
+      "userInfoUrl": "https://login.yandex.ru/info",
+      "defaultScope": "",
+      "syncMode": "FORCE"
+    }
+  }
+]
+```
+
+```
+"identityProviderMappers": [
+  {
+    "name": "Email importer",
+    "identityProviderMapper": "oidc-attribute-importer",
+    "config": { "claim": "email", "user.attribute": "email" }
+  },
+  {
+    "name": "Login importer",
+    "identityProviderMapper": "oidc-attribute-importer",
+    "config": { "claim": "login", "user.attribute": "username" }
+  }
+]
+```
+
+![yandex_oauth_1.6.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/yandex_oauth_1.6.png)
+
+Также добавлена кнопка на форму "Войти через Яндекс"
+
+![auth_1.6.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/auth_1.6.png)
 
 # Задание 2. Разработка сервиса отчётов
 
-## Задача 1. Создать архитектуру решения для подготовки и получения отчётов.
+## Задача 1. Создать архитектуру решения для подготовки и получения отчётов
 
 ![to-be_2.1.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/to-be_2.1.png)
 
 ## Задача 2. Разработать Airflow DAG и настроить его на запуск по расписанию
-
 
 `airflow-webserver`	предоставляет веб-интерфейс для мониторинга, запуска и отладки DAG
 
@@ -117,42 +217,185 @@ const keycloakConfig: KeycloakConfig = {
 
 Кнопка добавлена в [ReportPage.tsx](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/frontend/src/components/ReportPage.tsx)
 
+![success_auth_2.5.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/success_auth_2.5.png)
+
+```
+{
+  "data": [
+    {
+      "user_name": "prothetic1",
+      "prosthesis_id": "P001",
+      "total_signals": 1250,
+      "avg_strength": 0.78,
+      "total_active_minutes": 360,
+      "total_errors": 0
+    }
+  ]
+}
+```
+
+Если база данных пуста, отчёт будет пустым (массив []).
+
 # Задание 3. Снижение нагрузки на базу данных
 
-**Кэширование готовых отчётов в Minio (S3)**
+## Компоненты
 
-При первом запросе отчёт (JSON/PDF) генерируется, сохраняется в Minio и возвращается клиенту.
+- **Minio** – S3-совместимое объектное хранилище (бакет `reports`).  
+  Хранит готовые отчёты в виде файлов (JSON/PDF).
 
-При повторном запросе сервис report-service проверяет наличие файла в Minio и, если он существует, сразу отдаёт ссылку на CDN (Nginx), минуя ClickHouse.
+- **CDN (Nginx)** – прокси-сервер с включённым кэшированием (`proxy_cache`).  
+  Стоит перед Minio, кэширует статические файлы отчётов. Повторные запросы к одному и тому же отчёту отдаются из кэша CDN, минуя Minio.
 
-Таким образом, повторные запросы одного и того же отчёта не создают нагрузку на аналитическую базу.
+- **report-service** – микросервис генерации отчётов (FastAPI).  
+  Получает `user_id` из заголовка `X-User-Id` (устанавливается `bionicpro-auth`).  
+  Реализует логику:  
+  - проверить наличие отчёта в Minio;  
+  - если есть – вернуть ссылку на CDN;  
+  - если нет – сгенерировать отчёт из ClickHouse, сохранить в Minio, затем вернуть ссылку на CDN.
 
-Основная нагрузка на ClickHouse приходится только на момент первого запроса отчёта или на этапе ETL. Повторные запросы обслуживаются Minio/CDN.
+## Пошаговый процесс
 
-Для снижения нагрузки на ClickHouse и ускорения выдачи отчётов используется объектное хранилище S3 (Minio) и CDN (Nginx с кэшированием). При первом запросе отчёт генерируется, сохраняется в S3 и возвращается через CDN. Повторные запросы получают кэшированную копию.
+1. **Пользователь** через фронтенд (React) отправляет GET-запрос на `/api/reports/summary?from_date=...&to_date=...&format=...`. 
+   Запрос идёт через `bionicpro-auth` (проксирование), который добавляет заголовок `X-User-Id`
 
-- Отчёты хранятся в S3 с понятной иерархией.
+2. **report-service** :
+   - извлекает `user_id` из заголовка;
+   - формирует ключ объекта в S3:  
+     `reports/{user_id}/{from_date}_{to_date}.{format}`
 
-- CDN кэширует отчёты на 1 час (TTL).
+3. **Проверка существования отчёта в Minio** :
+   - Выполняется метод `head_object` (или `exists`) по ключу
+   - **Если файл существует** → сервис генерирует прямую ссылку на CDN
+   - **Если файл не существует** → переходим к генерации
 
-- После обновления данных ETL может либо удалять старые файлы, либо полагаться на перегенерацию при первом запросе.
+4. **Генерация нового отчёта** :
+   - report-service выполняет SQL-запрос к витрине ClickHouse (`report_fact`)
+   - Полученные данные преобразуются в нужный формат (JSON или PDF)
+   - Сгенерированный файл (в виде байтов) загружается в Minio по тому же клюу методом `put_object`
+   - После успешной загрузки сервис возвращает клиенту **редирект** на CDN URL (как в п. 3).
 
-- Для ускорения работы после ETL можно запускать предгенерацию отчётов для активных пользователей.
+5. **Раздача через CDN (Nginx)** :
+   - Клиент следует редиректу и запрашивает файл по CDN-URL.
+   - Nginx проверяет свой кэш (`proxy_cache`).  
+     - Если файл уже есть в кэше – отдаёт его с заголовком `X-Cache-Status: HIT`. 
+     - Если нет – запрашивает файл у Minio, сохраняет в кэш и отдаёт клиенту (заголовок `MISS`). 
+   - CDN кэширует отчёты на заданное время (например, 1 час), после чего они запрашиваются у Minio повторно
+
+## Преимущества подхода
+
+- **Снижение нагрузки на ClickHouse** – отчёт генерируется только один раз (первый запрос).  
+- **Быстрая выдача** – повторные запросы обслуживаются из CDN (и/или Minio) практически мгновенно.  
+- **Масштабируемость** – Minio и CDN легко распределяются.  
+- **Экономия ресурсов** – нет повторных тяжёлых SQL-запросов.
+
+`http://localhost:9003/browser/reports/report_test.txt`
+
+![report_test_3.1.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/report_test_3.1.png)
+
+Получение файла:
+
+![report_test_cdn_3.2.png](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/report_test_cdn_3.2.png)
 
 ## Задание 4. Повышение оперативности и стабильности работы CRM
 
-1. Добавлены сервисы в Docker Compose: Kafka, Zookeeper, Debezium
+- **Добавлены сервисы**:
 
-2. Настроили PostgreSQL для логической репликации
+| Компонент | Имя контейнера / сервиса | Порт (хост) |
+|-----------|--------------------------|--------------|
+| PostgreSQL (CRM) | `postgres_crm` | 5432 (внутренний) |
+| Debezium | `debezium` | 8084 |
+| Kafka | `kafka` | 9092 |
+| ClickHouse | `clickhouse` | 8123 (HTTP), 9000 (native) |
+| Zookeeper | `zookeeper` | 2181 |
 
-3. Зарегистрировали Debezium connector через REST API, указав, какие таблицы отслеживать
+- **Настройка PostgreSQL для CDC**:
+  - Включён `wal_level = logical` (параметр командной строки в `docker-compose.yml`).
+  - Добавлены слоты репликации для Debezium.
 
-4. В ClickHouse создали таблицу-потребитель (движок Kafka) и материализованное представление, которое парсит события и складывает в итоговую витрину
+**Файлы конфигурации** (в репозитории):
 
-5. Переписали API отчётов, чтобы он читал из витрины ClickHouse вместо прямых запросов к CRM
+- `debezium/crm-connector.json` – конфигурация Debezium Postgres Connector:
+  - URL PostgreSQL: `postgres_crm:5432`
+  - Отслеживаемые таблицы: `public.clients`, `public.prostheses`
+  - Имя топиков: `crm.public.clients`, `crm.public.prostheses`
+  - Формат сообщений: JSON с `before`/`after`, преобразование `ExtractNewRecordState`.
+
+- `clickhouse/init/010_cdc.sql` – создание таблиц
+- `clickhouse/init/020_dims.sql` – таблицы измерений
+- `clickhouse/init/030_report_mart_v2.sql` – обновлённая витрина отчётов, которая использует измерения
+
+**Запуск CDC**:
+
+1. Запущены все сервисы (`docker-compose up -d`).
+2. Коннектор Debezium зарегистрирован (через `init_cdc.sh` или вручную).
+
+**Проверка**:
+
+- Внесено изменение в `postgres_crm`
+
+- Проверка списка коннекторов:
 
 ```
-chmod +x scripts/init_cdc.sh
-docker-compose up -d
-./scripts/init_cdc.sh
+ curl.exe -s http://localhost:8084/connectors/crm-connector/status
+```
+
+```
+{
+  "name": "crm-connector",
+  "connector": {
+    "state": "RUNNING",
+    "worker_id": "debezium:8083"
+  },
+  "tasks": [
+    {
+      "id": 0,
+      "state": "RUNNING",
+      "worker_id": "debezium:8083"
+    }
+  ]
+}
+```
+
+**Проверка топика Kafka :**
+
+**Команда для просмотра сообщений в топике **
+```bash
+docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic crm.public.clients --from-beginning
+```
+
+```
+{
+  "before": null,
+  "after": { "id": 1, "name": "Test User", "email": "test@example.com" },
+  "op": "r"
+}
+```
+[]()
+[kafka-topic.txt](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/kafka-topic.txt)
+
+**Проверка, что события дошли до ClickHouse ^**
+
+```
+http://localhost:8123/?query=SELECT%20count()%20AS%20cnt%20FROM%20reports.crm_user_raw%20FORMAT%20JSON
+```
+
+[clickhouse-payload.txt](https://github.com/kuznechek/architecture-pro-bionicpro/blob/feature/src/clickhouse-payload.txt)
+
+**Проверка таблицы протезов:**
+
+```
+http://localhost:8123/?query=SELECT%20*%20FROM%20reports.crm_prosthesis_dim%20FINAL%20WHERE%20user_id='user1'%20FORMAT%20JSON
+```
+
+```
+{
+  "data": [
+    {
+      "id": 100,
+      "user_id": "user1",
+      "model": "BionicPro X1 DIM OK 33333",
+      "updated_at": "2026-05-13 12:30:45"
+    }
+  ]
+}
 ```

@@ -52,7 +52,8 @@ public class SessionMiddleware
         context.Response.Cookies.Append("session_id", newSessionId, new CookieOptions
         {
             HttpOnly = true,
-            SameSite = SameSiteMode.Strict,
+            Secure = false,
+            SameSite = SameSiteMode.Lax,
             MaxAge = TimeSpan.FromMinutes(sessionTimeout)
         });
 
