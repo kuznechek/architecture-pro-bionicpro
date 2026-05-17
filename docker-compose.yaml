@@ -1,42 +1,285 @@
-version: '3.8'
-
 services:
   keycloak_db:
-    image: postgres:14
+    image: postgres:15
     environment:
-      POSTGRES_DB: keycloak_db
-      POSTGRES_USER: keycloak_user
-      POSTGRES_PASSWORD: keycloak_password
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
     volumes:
-      - ./postgres-keycloak-data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bionicnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   keycloak:
-    image: quay.io/keycloak/keycloak:21.1
+    image: quay.io/keycloak/keycloak:26.0
     environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/keycloak_db
-      KC_DB_USERNAME: keycloak_user
-      KC_DB_PASSWORD: keycloak_password
-    command: 
-      - start-dev
-      - --import-realm
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    command: start-dev --import-realm
     ports:
       - "8080:8080"
     depends_on:
-      - keycloak_db
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+      keycloak_db:
+        condition: service_healthy
+    networks:
+      - bionicnet
+
+  bionicpro-auth:
+    build: ./bionicpro-auth
     environment:
-      REACT_APP_API_URL: http://localhost:8000
-      REACT_APP_KEYCLOAK_URL: http://localhost:8080
-      REACT_APP_KEYCLOAK_REALM: reports-realm
-      REACT_APP_KEYCLOAK_CLIENT_ID: reports-frontend
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80
+      Keycloak__Authority: http://keycloak:8080/realms/reports-realm
+      Keycloak__TokenUrl: http://keycloak:8080/realms/reports-realm/protocol/openid-connect/token
+      Keycloak__LogoutUrl: http://keycloak:8080/realms/reports-realm/protocol/openid-connect/logout
+      Keycloak__ClientId: bionicpro-auth
+      Keycloak__ClientSecret: VBS1hiAlCWwSIDN41hEUn7WfrNogPSAU
+      Session__TimeoutMinutes: 120
+    ports:
+      - "5001:80"
+    depends_on:
+      keycloak:
+        condition: service_started
+    networks:
+      - bionicnet
+
+  frontend:
+    build: ./frontend
+    # environment:
+    #   - REACT_APP_AUTH_API_URL=http://localhost:5001/api/auth
+    #   - REACT_APP_BUSINESS_API_URL=http://localhost:5001/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - bionicpro-auth
+    networks:
+      - bionicnet
+    
+  openldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldif
+    environment:
+      LDAP_ORGANISATION: "BionicPRO"
+      LDAP_DOMAIN: "bionicpro.com"
+      LDAP_ADMIN_PASSWORD: "admin"
+      LDAP_CONFIG_PASSWORD: "admin"
+    volumes:
+      - ./ldif/data:/var/lib/ldap
+      - ./ldif/config:/etc/ldap/slapd.d
+    ports:
+      - "389:389"
+      - "636:636"
+    networks:
+      - bionicnet
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost:389 -D 'cn=admin,dc=bionicpro,dc=com' -w admin -b 'dc=bionicpro,dc=com'"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  postgres_airflow:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    networks:
+      - bionicnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    build: ./airflow
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: mysecretkey
+    command: bash -c "airflow db init && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com"
+    networks:
+      - bionicnet
+
+  airflow-webserver:
+    build: ./airflow
+    restart: always
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: mysecretkey
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    command: airflow webserver
+    networks:
+      - bionicnet
+
+  airflow-scheduler:
+    build: ./airflow
+    restart: always
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres_airflow/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: mysecretkey
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    command: airflow scheduler
+    networks:
+      - bionicnet
+
+  report-service:
+    build: ./report-service
+    ports:
+      - "8082:8080"
+    depends_on:
+      - clickhouse
+    networks:
+      - bionicnet
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./scripts/init-clickhouse.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - bionicnet
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    networks:
+      - bionicnet
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/reports;
+      exit 0;
+      "
+    networks:
+      - bionicnet
+
+  cdn:
+    build: ./nginx
+    ports:
+      - "8083:80"
+    depends_on:
+      - minio
+    networks:
+      - bionicnet
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - bionicnet
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "9092:9092"
+    networks:
+      - bionicnet
+
+  debezium:
+    image: debezium/connect:2.5
+    depends_on:
+      - kafka
+      - postgres_crm
+    environment:
+      BOOTSTRAP_SERVERS: kafka:9092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_status
+    ports:
+      - "8084:8083"
+    networks:
+      - bionicnet
+
+  postgres_crm:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: crm_db
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_pass
+    command: >
+      -c wal_level=logical
+      -c max_replication_slots=10
+      -c max_wal_senders=10
+    volumes:
+      - crm_data:/var/lib/postgresql/data
+    networks:
+      - bionicnet
+
+  cdc-init:
+    image: alpine/curl:latest
+    volumes:
+      - ./scripts/init_cdc.sh:/init_cdc.sh
+    command: ["/bin/sh", "/init_cdc.sh"]
+    depends_on:
+      - kafka
+      - debezium
+      - clickhouse
+      - postgres_crm
+    networks:
+      - bionicnet
+    restart: "no"
+
+volumes:
+  postgres_data:
+  postgres_airflow_data:
+  clickhouse_data:
+  minio_data:
+  crm_data:
+
+networks:
+  bionicnet:
+    driver: bridge
